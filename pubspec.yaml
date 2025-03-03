@@ -1,6 +1,6 @@
 name: file_compression_plus
 description: "A Flutter package for compressing various file types including images and PDFs."
-version: 0.0.2
+version: 0.0.3
 homepage: https://github.com/Tisankan/file_compression_plus
 repository: https://github.com/Tisankan/file_compression_plus
 issue_tracker: https://github.com/Tisankan/file_compression_plus/issues
