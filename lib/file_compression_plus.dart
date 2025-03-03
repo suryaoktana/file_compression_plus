@@ -12,21 +12,23 @@ import 'package:syncfusion_flutter_pdf/pdf.dart' as syncfusion;
 enum ImageFormat {
   /// JPEG format
   jpg,
+
   /// PNG format
   png,
+
   /// WebP format
   webp
 }
 
 /// A utility class for compressing various file types.
-/// 
+///
 /// This class provides static methods to compress images and PDF files
 /// with customizable compression settings.
 class FileCompressor {
   const FileCompressor._();
 
   /// Compresses an image file with specified parameters.
-  /// 
+  ///
   /// Parameters:
   /// - [file]: The source image file to compress
   /// - [quality]: Compression quality (0-100), default is 80
@@ -34,9 +36,9 @@ class FileCompressor {
   /// - [maxHeight]: Maximum height of the output image, default is 1080
   /// - [format]: Target format for the compressed image
   /// - [deleteOriginal]: Whether to delete the original file after compression
-  /// 
+  ///
   /// Returns a [File] containing the compressed image.
-  /// 
+  ///
   /// Throws:
   /// - [ArgumentError] if quality is not between 0 and 100
   /// - [FileSystemException] if the file doesn't exist or is empty
@@ -52,11 +54,11 @@ class FileCompressor {
     if (quality < 0 || quality > 100) {
       throw ArgumentError('Quality must be between 0 and 100');
     }
-    
+
     if (!await file.exists()) {
       throw FileSystemException('File does not exist', file.path);
     }
-    
+
     final fileSize = await file.length();
     if (fileSize == 0) {
       throw FileSystemException('File is empty', file.path);
@@ -66,40 +68,43 @@ class FileCompressor {
     if (!['.jpg', '.jpeg', '.png', '.webp'].contains(extension)) {
       throw ArgumentError('Unsupported image format: $extension');
     }
-    
+
     try {
       format ??= _getImageFormatFromExtension(extension);
-      
+
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final tempFile = File(path.join(tempDir.path, 'temp_${timestamp}${extension}'));
+      final tempFile =
+          File(path.join(tempDir.path, 'temp_${timestamp}${extension}'));
       await file.copy(tempFile.path);
-      
-      final output = await FlutterImageCompress.compressWithFile(
-        tempFile.path,
-        quality: quality,
-        minWidth: maxWidth,
-        minHeight: maxHeight,
-        format: format == ImageFormat.png ? CompressFormat.png : format == ImageFormat.webp ? CompressFormat.webp : CompressFormat.jpeg
-      );
-      
+
+      final output = await FlutterImageCompress.compressWithFile(tempFile.path,
+          quality: quality,
+          minWidth: maxWidth,
+          minHeight: maxHeight,
+          format: format == ImageFormat.png
+              ? CompressFormat.png
+              : format == ImageFormat.webp
+                  ? CompressFormat.webp
+                  : CompressFormat.jpeg);
+
       await tempFile.delete();
-      
+
       if (output == null || output.isEmpty) {
         throw Exception('Compression failed: output file is empty');
       }
-      
+
       final outputExtension = _getExtensionFromFormat(format);
-      final outputPath = path.join(tempDir.path, 'compressed_$timestamp$outputExtension');
-      
+      final outputPath =
+          path.join(tempDir.path, 'compressed_$timestamp$outputExtension');
+
       final outputFile = File(outputPath);
       await outputFile.writeAsBytes(output);
 
-      
       if (deleteOriginal && await file.exists()) {
         await file.delete();
       }
-      
+
       return outputFile;
     } catch (e) {
       if (kDebugMode) {
@@ -108,7 +113,7 @@ class FileCompressor {
       rethrow;
     }
   }
-  
+
   static ImageFormat _getImageFormatFromExtension(String extension) {
     switch (extension) {
       case '.jpg':
@@ -138,7 +143,7 @@ class FileCompressor {
     if (!await file.exists()) {
       throw FileSystemException('File does not exist', file.path);
     }
-    
+
     final fileSize = await file.length();
     if (fileSize == 0) {
       throw FileSystemException('File is empty', file.path);
@@ -148,7 +153,7 @@ class FileCompressor {
     if (extension != '.pdf') {
       throw ArgumentError('Invalid file format: expected .pdf, got $extension');
     }
-    
+
     syncfusion.PdfDocument? document;
     File? outputFile;
     try {
@@ -161,11 +166,11 @@ class FileCompressor {
         }
         throw Exception('Invalid PDF file format');
       }
-      
+
       if (document.pages.count == 0) {
         throw Exception('Invalid PDF file: document is empty');
       }
-      
+
       switch (compressionLevel) {
         case PdfCompressionLevel.none:
           document.compressionLevel = syncfusion.PdfCompressionLevel.none;
@@ -177,29 +182,29 @@ class FileCompressor {
           document.compressionLevel = syncfusion.PdfCompressionLevel.best;
           break;
       }
-      
+
       for (int i = 0; i < document.pages.count; i++) {
         final page = document.pages[i];
         page.graphics.save();
       }
-      
+
       final compressedBytes = await document.save();
-      
+
       if (compressedBytes.isEmpty) {
         throw Exception('Compression failed: output file is empty');
       }
-      
+
       final dir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final outputPath = path.join(dir.path, 'compressed_${timestamp}.pdf');
-      
+
       outputFile = File(outputPath);
       await outputFile.writeAsBytes(compressedBytes);
-      
+
       if (deleteOriginal && await file.exists()) {
         await file.delete();
       }
-      
+
       return outputFile;
     } catch (e) {
       if (kDebugMode) {
@@ -218,8 +223,4 @@ class FileCompressor {
   }
 }
 
-enum PdfCompressionLevel {
-  none,
-  normal,
-  best
-}
+enum PdfCompressionLevel { none, normal, best }

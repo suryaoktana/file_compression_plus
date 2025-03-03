@@ -112,11 +112,11 @@ class _MyHomePageState extends State<MyHomePage> {
                 onPressed: _isCompressing ? null : _compressPdf,
                 child: const Text('Compress PDF'),
               ),
-              if (_isCompressing) ...[                
+              if (_isCompressing) ...[
                 const SizedBox(height: 16),
                 const CircularProgressIndicator(),
               ],
-              if (_compressedFile != null) ...[                
+              if (_compressedFile != null) ...[
                 const SizedBox(height: 16),
                 Text('Compressed file saved to:\n${_compressedFile!.path}'),
               ],
