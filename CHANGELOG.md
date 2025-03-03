@@ -12,3 +12,10 @@
 * Fixed platform configurations in pubspec.yaml
 * Updated Flutter SDK requirement to >=1.20.0
 * Added proper plugin implementation structure
+
+## 0.0.3
+
+* Removed web platform support to optimize package size and performance
+* Enhanced native platform implementation
+* Improved code documentation and examples
+* Updated dependencies to latest stable versions

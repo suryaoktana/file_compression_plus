@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "file_compression_plus",
-    platforms: [.macOS(.v10_14)],
+    platforms: [.macOS(.v10_14), .iOS(.v13)],
     products: [
         .library(
             name: "file_compression_plus",
@@ -31,5 +31,21 @@ let package = Package(
                 .define("RELEASE", .when(configuration: .release))
             ]
         ),
+        .target(
+            name: "file_compression_plus_ios",
+            dependencies: [
+                .product(name: "Flutter", package: "flutter"),
+                .product(name: "Logging", package: "swift-log")
+            ],
+            path: "../ios",
+            sources: ["Classes"],
+            resources: [
+                .copy("Resources")
+            ],
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug)),
+                .define("RELEASE", .when(configuration: .release))
+            ]
+        )
     ]
 )
