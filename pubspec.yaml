@@ -5,6 +5,7 @@ homepage: https://github.com/Tisankan/file_compression_plus
 repository: https://github.com/Tisankan/file_compression_plus
 issue_tracker: https://github.com/Tisankan/file_compression_plus/issues
 documentation: https://github.com/Tisankan/file_compression_plus/blob/main/README.md
+topics: [flutter, file-compression, image-compression, pdf-compression, flutter-package, dart, image-processing, pdf-processing, flutter-plugin, file-handling]
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
