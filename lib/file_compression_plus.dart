@@ -118,22 +118,16 @@ class FileCompressor {
         return ImageFormat.png;
       case '.webp':
         return ImageFormat.webp;
-      default:
-        return ImageFormat.jpg;
     }
+    throw ArgumentError('Unsupported image format: $extension');
   }
 
   static String _getExtensionFromFormat(ImageFormat format) {
-    switch (format) {
-      case ImageFormat.jpg:
-        return '.jpg';
-      case ImageFormat.png:
-        return '.png';
-      case ImageFormat.webp:
-        return '.webp';
-      default:
-        return '.jpg';
-    }
+    return switch (format) {
+      ImageFormat.jpg => '.jpg',
+      ImageFormat.png => '.png',
+      ImageFormat.webp => '.webp'
+    };
   }
 
   static Future<File> compressPdf({
@@ -168,7 +162,7 @@ class FileCompressor {
         throw Exception('Invalid PDF file format');
       }
       
-      if (document == null || document.pages.count == 0) {
+      if (document.pages.count == 0) {
         throw Exception('Invalid PDF file: document is empty');
       }
       
@@ -191,7 +185,7 @@ class FileCompressor {
       
       final compressedBytes = await document.save();
       
-      if (compressedBytes == null || compressedBytes.isEmpty) {
+      if (compressedBytes.isEmpty) {
         throw Exception('Compression failed: output file is empty');
       }
       
