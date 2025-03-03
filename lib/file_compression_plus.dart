@@ -1,3 +1,4 @@
+/// A library for compressing various file types including images and PDFs.
 library file_compression_plus;
 
 import 'dart:io';
@@ -7,15 +8,39 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart' as syncfusion;
 
+/// Supported image formats for compression.
 enum ImageFormat {
+  /// JPEG format
   jpg,
+  /// PNG format
   png,
+  /// WebP format
   webp
 }
 
+/// A utility class for compressing various file types.
+/// 
+/// This class provides static methods to compress images and PDF files
+/// with customizable compression settings.
 class FileCompressor {
   const FileCompressor._();
 
+  /// Compresses an image file with specified parameters.
+  /// 
+  /// Parameters:
+  /// - [file]: The source image file to compress
+  /// - [quality]: Compression quality (0-100), default is 80
+  /// - [maxWidth]: Maximum width of the output image, default is 1920
+  /// - [maxHeight]: Maximum height of the output image, default is 1080
+  /// - [format]: Target format for the compressed image
+  /// - [deleteOriginal]: Whether to delete the original file after compression
+  /// 
+  /// Returns a [File] containing the compressed image.
+  /// 
+  /// Throws:
+  /// - [ArgumentError] if quality is not between 0 and 100
+  /// - [FileSystemException] if the file doesn't exist or is empty
+  /// - [ArgumentError] if the image format is unsupported
   static Future<File> compressImage({
     required File file,
     int quality = 80,
@@ -65,7 +90,7 @@ class FileCompressor {
       }
       
       final outputExtension = _getExtensionFromFormat(format);
-      final outputPath = path.join(tempDir.path, 'compressed_${timestamp}${outputExtension}');
+      final outputPath = path.join(tempDir.path, 'compressed_$timestamp$outputExtension');
       
       final outputFile = File(outputPath);
       await outputFile.writeAsBytes(output);
