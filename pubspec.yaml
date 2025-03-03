@@ -7,13 +7,13 @@ issue_tracker: https://github.com/Tisankan/file_compression_plus/issues
 documentation: https://github.com/Tisankan/file_compression_plus/blob/main/README.md
 
 environment:
-  sdk: ^3.6.1
+  sdk: '>=3.0.0 <4.0.0'
   flutter: ">=1.17.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  image_compression_flutter: ^1.0.3
+  flutter_image_compress: ^2.1.0
   syncfusion_flutter_pdf: ^24.1.47
   path: ^1.8.3
   path_provider: ^2.1.2

@@ -1,60 +1,79 @@
 library file_compression_plus;
 
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
-import 'package:image_compression_flutter/image_compression_flutter.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart' as syncfusion;
 
-/// Main class for file compression operations
+enum ImageFormat {
+  jpg,
+  png,
+  webp
+}
+
 class FileCompressor {
-  /// Compresses an image file and returns the compressed file
-  /// 
-  /// [file] - The image file to compress
-  /// [quality] - Quality of the compressed image (0-100, default: 80)
-  /// [maxWidth] - Maximum width of the output image (default: 1920)
-  /// [maxHeight] - Maximum height of the output image (default: 1080)
-  /// [format] - Output format (default: original format)
-  /// 
-  /// Returns a [Future<File>] with the compressed image
+  const FileCompressor._();
+
   static Future<File> compressImage({
     required File file,
     int quality = 80,
     int maxWidth = 1920,
     int maxHeight = 1080,
     ImageFormat? format,
+    bool deleteOriginal = false,
   }) async {
+    if (quality < 0 || quality > 100) {
+      throw ArgumentError('Quality must be between 0 and 100');
+    }
+    
+    if (!await file.exists()) {
+      throw FileSystemException('File does not exist', file.path);
+    }
+    
+    final fileSize = await file.length();
+    if (fileSize == 0) {
+      throw FileSystemException('File is empty', file.path);
+    }
+
+    final extension = path.extension(file.path).toLowerCase();
+    if (!['.jpg', '.jpeg', '.png', '.webp'].contains(extension)) {
+      throw ArgumentError('Unsupported image format: $extension');
+    }
+    
     try {
-      final extension = path.extension(file.path).toLowerCase();
-      
       format ??= _getImageFormatFromExtension(extension);
       
-      final config = Configuration(
-        outputType: format,
-        quality: quality,
-        size: ImageSize(width: maxWidth, height: maxHeight),
-      );
-      
-      final input = ImageFile(
-        rawBytes: await file.readAsBytes(),
-        filePath: file.path,
-      );
-      
-      final output = await compressInQueue(ImageFileConfiguration(
-        input: input,
-        config: config,
-      ));
-      
-      final dir = await getTemporaryDirectory();
+      final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final tempFile = File(path.join(tempDir.path, 'temp_${timestamp}${extension}'));
+      await file.copy(tempFile.path);
+      
+      final output = await FlutterImageCompress.compressWithFile(
+        tempFile.path,
+        quality: quality,
+        minWidth: maxWidth,
+        minHeight: maxHeight,
+        format: format == ImageFormat.png ? CompressFormat.png : format == ImageFormat.webp ? CompressFormat.webp : CompressFormat.jpeg
+      );
+      
+      await tempFile.delete();
+      
+      if (output == null || output.isEmpty) {
+        throw Exception('Compression failed: output file is empty');
+      }
+      
       final outputExtension = _getExtensionFromFormat(format);
-      final outputPath = path.join(dir.path, 'compressed_${timestamp}${outputExtension}');
+      final outputPath = path.join(tempDir.path, 'compressed_${timestamp}${outputExtension}');
       
       final outputFile = File(outputPath);
-      await outputFile.writeAsBytes(output.rawBytes);
+      await outputFile.writeAsBytes(output);
+
+      
+      if (deleteOriginal && await file.exists()) {
+        await file.delete();
+      }
       
       return outputFile;
     } catch (e) {
@@ -65,42 +84,6 @@ class FileCompressor {
     }
   }
   
-  /// Compresses a PDF file and returns the compressed file
-  /// 
-  /// [file] - The PDF file to compress
-  /// [compressionLevel] - Level of compression (default: PdfCompressionLevel.best)
-  /// 
-  /// Returns a [Future<File>] with the compressed PDF
-  static Future<File> compressPdf({
-    required File file,
-    PdfCompressionLevel compressionLevel = PdfCompressionLevel.best,
-  }) async {
-    try {
-      final bytes = await file.readAsBytes();
-      final document = PdfDocument(inputBytes: bytes);
-      
-      document.compressionLevel = compressionLevel;
-      
-      final compressedBytes = await document.save();
-      document.dispose();
-      
-      final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final outputPath = path.join(dir.path, 'compressed_${timestamp}.pdf');
-      
-      final outputFile = File(outputPath);
-      await outputFile.writeAsBytes(compressedBytes as List<int>);
-      
-      return outputFile;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error compressing PDF: $e');
-      }
-      rethrow;
-    }
-  }
-  
-  /// Helper method to get image format from file extension
   static ImageFormat _getImageFormatFromExtension(String extension) {
     switch (extension) {
       case '.jpg':
@@ -114,8 +97,7 @@ class FileCompressor {
         return ImageFormat.jpg;
     }
   }
-  
-  /// Helper method to get file extension from image format
+
   static String _getExtensionFromFormat(ImageFormat format) {
     switch (format) {
       case ImageFormat.jpg:
@@ -128,16 +110,97 @@ class FileCompressor {
         return '.jpg';
     }
   }
+
+  static Future<File> compressPdf({
+    required File file,
+    PdfCompressionLevel compressionLevel = PdfCompressionLevel.best,
+    bool deleteOriginal = false,
+  }) async {
+    if (!await file.exists()) {
+      throw FileSystemException('File does not exist', file.path);
+    }
+    
+    final fileSize = await file.length();
+    if (fileSize == 0) {
+      throw FileSystemException('File is empty', file.path);
+    }
+
+    final extension = path.extension(file.path).toLowerCase();
+    if (extension != '.pdf') {
+      throw ArgumentError('Invalid file format: expected .pdf, got $extension');
+    }
+    
+    syncfusion.PdfDocument? document;
+    File? outputFile;
+    try {
+      final bytes = await file.readAsBytes();
+      try {
+        document = syncfusion.PdfDocument(inputBytes: bytes);
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error loading PDF: $e');
+        }
+        throw Exception('Invalid PDF file format');
+      }
+      
+      if (document == null || document.pages.count == 0) {
+        throw Exception('Invalid PDF file: document is empty');
+      }
+      
+      switch (compressionLevel) {
+        case PdfCompressionLevel.none:
+          document.compressionLevel = syncfusion.PdfCompressionLevel.none;
+          break;
+        case PdfCompressionLevel.normal:
+          document.compressionLevel = syncfusion.PdfCompressionLevel.normal;
+          break;
+        case PdfCompressionLevel.best:
+          document.compressionLevel = syncfusion.PdfCompressionLevel.best;
+          break;
+      }
+      
+      for (int i = 0; i < document.pages.count; i++) {
+        final page = document.pages[i];
+        page.graphics.save();
+      }
+      
+      final compressedBytes = await document.save();
+      
+      if (compressedBytes == null || compressedBytes.isEmpty) {
+        throw Exception('Compression failed: output file is empty');
+      }
+      
+      final dir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final outputPath = path.join(dir.path, 'compressed_${timestamp}.pdf');
+      
+      outputFile = File(outputPath);
+      await outputFile.writeAsBytes(compressedBytes);
+      
+      if (deleteOriginal && await file.exists()) {
+        await file.delete();
+      }
+      
+      return outputFile;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error compressing PDF: $e');
+      }
+      if (e is ArgumentError || e.toString().contains('Invalid PDF')) {
+        throw Exception('Invalid PDF file format');
+      }
+      if (outputFile != null && await outputFile.exists()) {
+        await outputFile.delete();
+      }
+      rethrow;
+    } finally {
+      document?.dispose();
+    }
+  }
 }
 
-/// Enum for PDF compression levels
 enum PdfCompressionLevel {
-  /// No compression
   none,
-  
-  /// Normal compression
   normal,
-  
-  /// Best compression
   best
 }

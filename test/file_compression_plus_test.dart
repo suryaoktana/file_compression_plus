@@ -1,97 +1,186 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:file_compression_plus/file_compression_plus.dart';
-import 'package:image_compression_flutter/image_compression_flutter.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as path;
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
+import 'package:flutter/services.dart';
 
 @GenerateMocks([File])
 import 'file_compression_plus_test.mocks.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('plugins.flutter.io/path_provider'),
+    (methodCall) async {
+      if (methodCall.method == 'getTemporaryDirectory') {
+        return Directory.systemTemp.path;
+      }
+      return null;
+    },
+  );
   
-  group('FileCompressor', () {
-    test('Image format detection works correctly', () {
-      // Test the image format detection logic by checking return types
+  late File testImageFile;
+  late File testPdfFile;
+  late File emptyFile;
+  
+  setUpAll(() async {
+    final testDir = Directory('test');
+    testImageFile = File(path.join(testDir.path, '67beeca377f4e.png'));
+    testPdfFile = File(path.join(testDir.path, 'Ultimate UI-Task.pdf'));
+    
+    emptyFile = File('${Directory.systemTemp.path}/empty.jpg');
+    await emptyFile.writeAsBytes(Uint8List(0));
+  });
+
+  tearDownAll(() async {
+    if (await emptyFile.exists()) {
+      await emptyFile.delete();
+    }
+  });
+
+  group('Image Compression', () {
+    test('Image compression returns a File', () async {
       expect(
-        FileCompressor.compressImage(file: File('test.jpg')),
-        isA<Future<File>>(),
-      );
-      
-      expect(
-        FileCompressor.compressImage(file: File('test.png')),
-        isA<Future<File>>(),
-      );
-      
-      expect(
-        FileCompressor.compressImage(file: File('test.webp')),
-        isA<Future<File>>(),
-      );
-      
-      // Test with unknown extension
-      expect(
-        FileCompressor.compressImage(file: File('test.unknown')),
+        FileCompressor.compressImage(file: testImageFile),
         isA<Future<File>>(),
       );
     });
-    
-    test('Image compression parameters are correctly applied', () {
-      // Test with custom parameters
+
+    test('Image compression throws error for non-existent file', () async {
+      final nonExistentFile = File('non_existent.jpg');
       expect(
-        FileCompressor.compressImage(
-          file: File('test.jpg'),
-          quality: 50,
-          maxWidth: 800,
-          maxHeight: 600,
-          format: ImageFormat.png,
-        ),
-        isA<Future<File>>(),
+        () => FileCompressor.compressImage(file: nonExistentFile),
+        throwsA(isA<FileSystemException>().having(
+          (e) => e.message,
+          'message',
+          contains('File does not exist'),
+        )),
       );
     });
     
-    test('PDF compression returns a File', () {
+    test('Image compression with invalid parameters throws error', () {
       expect(
-        FileCompressor.compressPdf(file: File('test.pdf')),
-        isA<Future<File>>(),
-      );
-    });
-    
-    test('PDF compression with different levels', () {
-      // Test with different compression levels
-      expect(
-        FileCompressor.compressPdf(
-          file: File('test.pdf'),
-          compressionLevel: PdfCompressionLevel.none,
+        () => FileCompressor.compressImage(
+          file: testImageFile,
+          quality: -1,
         ),
-        isA<Future<File>>(),
+        throwsA(isA<ArgumentError>().having(
+          (e) => e.message,
+          'message',
+          contains('Quality must be between 0 and 100'),
+        )),
       );
       
       expect(
-        FileCompressor.compressPdf(
-          file: File('test.pdf'),
-          compressionLevel: PdfCompressionLevel.normal,
+        () => FileCompressor.compressImage(
+          file: testImageFile,
+          quality: 101,
         ),
-        isA<Future<File>>(),
+        throwsA(isA<ArgumentError>().having(
+          (e) => e.message,
+          'message',
+          contains('Quality must be between 0 and 100'),
+        )),
+      );
+    });
+
+    test('Image compression reduces file size', () async {
+      final originalSize = await testImageFile.length();
+      final compressedFile = await FileCompressor.compressImage(
+        file: testImageFile,
+        quality: 50,
+      );
+      final compressedSize = await compressedFile.length();
+      
+      expect(compressedSize, lessThan(originalSize));
+      await compressedFile.delete();
+    });
+
+    test('Image compression with format conversion', () async {
+      final compressedFile = await FileCompressor.compressImage(
+        file: testImageFile,
+        format: ImageFormat.jpg,
       );
       
+      expect(path.extension(compressedFile.path).toLowerCase(), equals('.jpg'));
+      await compressedFile.delete();
+    });
+  });
+
+  group('PDF Compression', () {
+    test('PDF compression returns a File', () async {
       expect(
-        FileCompressor.compressPdf(
-          file: File('test.pdf'),
-          compressionLevel: PdfCompressionLevel.best,
-        ),
+        FileCompressor.compressPdf(file: testPdfFile),
         isA<Future<File>>(),
       );
     });
+
+    test('PDF compression throws error for invalid file format', () {
+      expect(
+        () => FileCompressor.compressPdf(file: testImageFile),
+        throwsA(isA<ArgumentError>().having(
+          (e) => e.message,
+          'message',
+          contains('Invalid file format'),
+        )),
+      );
+    });
     
-    test('PdfCompressionLevel enum has correct values', () {
-      expect(PdfCompressionLevel.values.length, 3);
-      expect(PdfCompressionLevel.none.index, 0);
-      expect(PdfCompressionLevel.normal.index, 1);
-      expect(PdfCompressionLevel.best.index, 2);
+    test('PDF compression throws error for empty file', () async {
+      expect(
+        () => FileCompressor.compressPdf(file: emptyFile),
+        throwsA(isA<FileSystemException>().having(
+          (e) => e.message,
+          'message',
+          contains('File is empty'),
+        )),
+      );
+    });
+
+    test('PDF compression throws error for non-existent file', () async {
+      final nonExistentFile = File('non_existent.pdf');
+      expect(
+        () => FileCompressor.compressPdf(file: nonExistentFile),
+        throwsA(isA<FileSystemException>().having(
+          (e) => e.message,
+          'message',
+          contains('File does not exist'),
+        )),
+      );
+    });
+    
+    test('PDF compression produces valid output file', () async {
+      final compressedFile = await FileCompressor.compressPdf(
+        file: testPdfFile,
+        compressionLevel: PdfCompressionLevel.best,
+      );
+      
+      expect(await compressedFile.exists(), isTrue);
+      expect(await compressedFile.length(), greaterThan(0));
+      await compressedFile.delete();
+    });
+
+    test('PDF compression with different compression levels produces valid files', () async {
+      final compressedNone = await FileCompressor.compressPdf(
+        file: testPdfFile,
+        compressionLevel: PdfCompressionLevel.none,
+      );
+      
+      final compressedBest = await FileCompressor.compressPdf(
+        file: testPdfFile,
+        compressionLevel: PdfCompressionLevel.best,
+      );
+      
+      expect(await compressedNone.exists(), isTrue);
+      expect(await compressedBest.exists(), isTrue);
+      expect(await compressedNone.length(), greaterThan(0));
+      expect(await compressedBest.length(), greaterThan(0));
+      
+      await compressedNone.delete();
+      await compressedBest.delete();
     });
   });
 }
